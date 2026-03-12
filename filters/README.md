@@ -12,8 +12,11 @@
 | `check_spread(spread, instrument)` | Spread below instrument max |
 | `check_session(now_gmt)` | Returns active Session or None |
 | `check_news(now_gmt, news_times)` | True if no news within 15 min |
+| `fetch_news_events()` | Fetch high/medium-impact USD events from Forex Factory |
+| `get_upcoming_events(now)` | Return event times within next 24 hours |
 
 ## Dependencies
 
 - `config` — thresholds, instrument configs, session windows
 - `indicators` — ATR calculation
+- `requests` — HTTP client for Forex Factory calendar API

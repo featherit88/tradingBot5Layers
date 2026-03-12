@@ -12,7 +12,7 @@ from config import (
     STARTING_CAPITAL,
     Instrument,
 )
-from filters import all_filters_pass
+from filters import all_filters_pass, get_upcoming_events
 from indicators import atr
 from risk import RiskManager, Trade
 from scoring import compute_confluence
@@ -106,8 +106,8 @@ class ScalpingBot:
         if df_1m.empty or df_3m.empty or df_5m.empty:
             return
 
-        # News times — placeholder, will integrate a news feed later
-        news_times: list[datetime] = []
+        # Fetch upcoming high-impact news events
+        news_times = get_upcoming_events(now)
 
         # ── Entry filters ────────────────────────────────────────
         passed, session = all_filters_pass(
