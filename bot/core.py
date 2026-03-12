@@ -12,7 +12,7 @@ from config import (
     STARTING_CAPITAL,
     Instrument,
 )
-from filters import all_filters_pass, get_upcoming_events
+from filters import all_filters_pass, get_upcoming_events, is_market_safe
 from indicators import atr
 from risk import RiskManager, Trade
 from scoring import compute_confluence
@@ -71,6 +71,12 @@ class ScalpingBot:
 
     def _tick(self) -> None:
         now = datetime.now(timezone.utc)
+
+        # Check breaking news — block new trades if major event
+        if not is_market_safe():
+            log.warning("Breaking news detected — skipping new trades.")
+            self._manage_open_trades()
+            return
 
         # Check drawdown limits
         if self.risk.daily_drawdown_hit():
