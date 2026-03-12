@@ -1,0 +1,6 @@
+docker/.env
+__pycache__/
+*.pyc
+.venv/
+db_data/
+.claude/

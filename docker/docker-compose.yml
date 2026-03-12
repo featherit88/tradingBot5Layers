@@ -1,0 +1,29 @@
+services:
+  bot:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: scalping-bot
+    env_file: .env
+    depends_on:
+      - db
+    volumes:
+      - ..:/app
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.0
+    container_name: scalping-db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-scalping_root_pw}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-scalping_bot}
+      MYSQL_USER: ${MYSQL_USER:-scalping}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-scalping_pw}
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    restart: unless-stopped
+
+volumes:
+  db_data:
