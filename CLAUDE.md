@@ -83,6 +83,7 @@ module_name/
 | `risk/` | Position sizing, drawdown limits, and trade lifecycle management |
 | `broker/` | Connection to cTrader API for market data and order execution |
 | `bot/` | Main orchestration loop that ties all modules together |
+| `backtest/` | Walk-forward simulation engine for strategy validation |
 
 ### Import Convention
 ```python
@@ -99,8 +100,8 @@ Always import from the module's public API (`__init__.py`), never from internal 
 - All dependencies (Python, MySQL, etc.) are containerized
 
 ## Current Status
-Python bot skeleton is complete with modular architecture. Dockerized.
-Next steps: implement real cTrader API calls in broker/, add backtesting, add news feed integration.
+Python bot skeleton is complete with modular architecture. Dockerized. Backtesting engine operational.
+Next steps: implement real cTrader API calls in broker/, add news feed integration, feed real historical data into backtest.
 
 ## Decisions Already Made
 - Supertrend: ATR 10 chosen over ATR 5 (ATR 5 too sensitive to single-candle spikes on US30)

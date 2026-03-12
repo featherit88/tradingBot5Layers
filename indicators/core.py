@@ -43,8 +43,9 @@ def supertrend(
     atr_vals = atr(df, atr_period)
     hl2 = (df["high"] + df["low"]) / 2
 
-    upper = hl2 + multiplier * atr_vals
-    lower = hl2 - multiplier * atr_vals
+    upper = (hl2 + multiplier * atr_vals).values.copy()
+    lower = (hl2 - multiplier * atr_vals).values.copy()
+    close = df["close"].values
 
     st_dir = np.ones(len(df), dtype=int)
     st_val = np.empty(len(df))
@@ -52,22 +53,18 @@ def supertrend(
 
     for i in range(1, len(df)):
         # carry forward tighter bands
-        if lower.iloc[i] > lower.iloc[i - 1] or df["close"].iloc[i - 1] < lower.iloc[i - 1]:
-            pass  # keep new lower
-        else:
-            lower.iloc[i] = lower.iloc[i - 1]
+        if not (lower[i] > lower[i - 1] or close[i - 1] < lower[i - 1]):
+            lower[i] = lower[i - 1]
 
-        if upper.iloc[i] < upper.iloc[i - 1] or df["close"].iloc[i - 1] > upper.iloc[i - 1]:
-            pass
-        else:
-            upper.iloc[i] = upper.iloc[i - 1]
+        if not (upper[i] < upper[i - 1] or close[i - 1] > upper[i - 1]):
+            upper[i] = upper[i - 1]
 
         if st_dir[i - 1] == 1:
-            st_dir[i] = -1 if df["close"].iloc[i] < lower.iloc[i] else 1
+            st_dir[i] = -1 if close[i] < lower[i] else 1
         else:
-            st_dir[i] = 1 if df["close"].iloc[i] > upper.iloc[i] else -1
+            st_dir[i] = 1 if close[i] > upper[i] else -1
 
-        st_val[i] = lower.iloc[i] if st_dir[i] == 1 else upper.iloc[i]
+        st_val[i] = lower[i] if st_dir[i] == 1 else upper[i]
 
     return pd.DataFrame({"supertrend": st_val, "direction": st_dir}, index=df.index)
 
@@ -113,14 +110,19 @@ def market_structure_bearish(df: pd.DataFrame) -> bool:
 
 def heikin_ashi(df: pd.DataFrame) -> pd.DataFrame:
     """Convert OHLC to Heikin-Ashi candles."""
-    ha = pd.DataFrame(index=df.index)
-    ha["close"] = (df["open"] + df["high"] + df["low"] + df["close"]) / 4
-    ha["open"] = 0.0
-    ha["open"].iloc[0] = (df["open"].iloc[0] + df["close"].iloc[0]) / 2
+    ha_close = (df["open"] + df["high"] + df["low"] + df["close"]) / 4
+
+    ha_open = np.empty(len(df))
+    ha_open[0] = (df["open"].iloc[0] + df["close"].iloc[0]) / 2
     for i in range(1, len(df)):
-        ha["open"].iloc[i] = (ha["open"].iloc[i - 1] + ha["close"].iloc[i - 1]) / 2
-    ha["high"] = pd.concat([ha["open"], ha["close"], df["high"]], axis=1).max(axis=1)
-    ha["low"] = pd.concat([ha["open"], ha["close"], df["low"]], axis=1).min(axis=1)
+        ha_open[i] = (ha_open[i - 1] + ha_close.iloc[i - 1]) / 2
+
+    ha = pd.DataFrame({
+        "open": ha_open,
+        "close": ha_close.values,
+    }, index=df.index)
+    ha["high"] = np.maximum(np.maximum(ha["open"], ha["close"]), df["high"].values)
+    ha["low"] = np.minimum(np.minimum(ha["open"], ha["close"]), df["low"].values)
     return ha
 
 
