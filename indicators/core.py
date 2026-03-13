@@ -18,7 +18,6 @@ from config import (
     VOLUME_SPIKE_MULT,
 )
 
-
 # ── ATR ──────────────────────────────────────────────────────────
 
 def atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
@@ -77,9 +76,7 @@ def _swing_points(series: pd.Series, bars: int = FRACTAL_BARS, mode: str = "high
     for i in range(bars, len(series) - bars):
         window = series.iloc[i - bars : i + bars + 1]
         val = series.iloc[i]
-        if mode == "high" and val == window.max():
-            swings.append((i, val))
-        elif mode == "low" and val == window.min():
+        if (mode == "high" and val == window.max()) or (mode == "low" and val == window.min()):
             swings.append((i, val))
     return swings
 

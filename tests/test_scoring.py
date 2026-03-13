@@ -1,13 +1,10 @@
 """Tests for the scoring module."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-import numpy as np
 import pandas as pd
-import pytest
 
 from scoring.core import ScoreBreakdown, compute_confluence
-
 
 # ── ScoreBreakdown ──────────────────────────────────────────────
 
@@ -92,7 +89,7 @@ class TestComputeConfluence:
         """VWAP should not score before 14:00 GMT."""
         df = _flat_df(50)
         # Price above VWAP in a long direction, but time is 10:00 GMT
-        morning = datetime(2026, 3, 13, 10, 0, tzinfo=timezone.utc)
+        morning = datetime(2026, 3, 13, 10, 0, tzinfo=UTC)
         score = compute_confluence(1, df, df, df, now=morning)
         assert score.vwap_score == 0
 
@@ -105,7 +102,7 @@ class TestComputeConfluence:
             df_1m.loc[i, "close"] = 110.0
             df_1m.loc[i, "high"] = 111.0
             df_1m.loc[i, "open"] = 109.0
-        afternoon = datetime(2026, 3, 13, 15, 0, tzinfo=timezone.utc)
+        afternoon = datetime(2026, 3, 13, 15, 0, tzinfo=UTC)
         score = compute_confluence(1, _flat_df(50), _flat_df(50), df_1m, now=afternoon)
         assert score.vwap_score == 1
 

@@ -7,8 +7,7 @@ caches results, and returns upcoming event times for the news filter.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 import requests
 
@@ -26,7 +25,7 @@ _BLOCK_IMPACTS = {"High", "Medium"}
 
 # Cache
 _cached_events: list[datetime] = []
-_cache_timestamp: Optional[datetime] = None
+_cache_timestamp: datetime | None = None
 _CACHE_TTL_HOURS = 4  # refresh every 4 hours
 
 
@@ -41,7 +40,7 @@ def fetch_news_events(
     """
     global _cached_events, _cache_timestamp
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Return cached if still fresh
     if _cache_timestamp and (now - _cache_timestamp).total_seconds() < _CACHE_TTL_HOURS * 3600:
@@ -73,7 +72,7 @@ def fetch_news_events(
 
             try:
                 # FF format: "2026-03-12T08:30:00-04:00"
-                event_time = datetime.fromisoformat(date_str).astimezone(timezone.utc)
+                event_time = datetime.fromisoformat(date_str).astimezone(UTC)
                 events.append(event_time)
             except (ValueError, TypeError):
                 log.debug("Could not parse date: %s", date_str)
@@ -103,7 +102,7 @@ def get_upcoming_events(
     for the check_news() filter.
     """
     if now is None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
     all_events = fetch_news_events()
     cutoff = now + timedelta(hours=lookahead_hours)

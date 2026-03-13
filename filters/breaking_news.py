@@ -9,8 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import re
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 import requests
 
@@ -98,7 +97,7 @@ _BLOCK_PATTERN = re.compile(
 
 # Cache
 _cached_alerts: list[dict] = []
-_cache_timestamp: Optional[datetime] = None
+_cache_timestamp: datetime | None = None
 _CACHE_TTL_MINUTES = 5  # check news every 5 minutes
 
 
@@ -119,7 +118,7 @@ def scan_breaking_news(
     """
     global _cached_alerts, _cache_timestamp
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Return cached if fresh
     if _cache_timestamp and (now - _cache_timestamp).total_seconds() < _CACHE_TTL_MINUTES * 60:
@@ -149,7 +148,7 @@ def scan_breaking_news(
 
     for article in articles:
         ts = article.get("datetime", 0)
-        article_time = datetime.fromtimestamp(ts, tz=timezone.utc)
+        article_time = datetime.fromtimestamp(ts, tz=UTC)
 
         if article_time < cutoff:
             continue

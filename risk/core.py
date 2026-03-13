@@ -52,9 +52,7 @@ class RiskManager:
             return False
         if self.daily_drawdown_hit():
             return False
-        if self.weekly_drawdown_hit():
-            return False
-        return True
+        return not self.weekly_drawdown_hit()
 
     def daily_drawdown_hit(self) -> bool:
         return (self.day_start_balance - self.balance) / self.day_start_balance >= DAILY_DRAWDOWN_LIMIT

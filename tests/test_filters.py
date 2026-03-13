@@ -1,9 +1,8 @@
 """Tests for the filters module."""
 
-from datetime import datetime, time, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pandas as pd
-import pytest
 
 from config import Instrument, Session
 from filters.core import (
@@ -76,26 +75,26 @@ class TestSpread:
 
 class TestSession:
     def test_london_session(self):
-        now = datetime(2026, 3, 13, 8, 0, tzinfo=timezone.utc)  # 08:00 GMT
+        now = datetime(2026, 3, 13, 8, 0, tzinfo=UTC)  # 08:00 GMT
         result = check_session(now)
         assert result == Session.LONDON
 
     def test_ny_session(self):
-        now = datetime(2026, 3, 13, 14, 0, tzinfo=timezone.utc)  # 14:00 GMT
+        now = datetime(2026, 3, 13, 14, 0, tzinfo=UTC)  # 14:00 GMT
         result = check_session(now)
         assert result == Session.NEW_YORK
 
     def test_outside_sessions(self):
-        now = datetime(2026, 3, 13, 12, 0, tzinfo=timezone.utc)  # 12:00 GMT
+        now = datetime(2026, 3, 13, 12, 0, tzinfo=UTC)  # 12:00 GMT
         result = check_session(now)
         assert result is None
 
     def test_session_boundary_start(self):
-        now = datetime(2026, 3, 13, 7, 0, tzinfo=timezone.utc)
+        now = datetime(2026, 3, 13, 7, 0, tzinfo=UTC)
         assert check_session(now) == Session.LONDON
 
     def test_session_boundary_end(self):
-        now = datetime(2026, 3, 13, 10, 0, tzinfo=timezone.utc)
+        now = datetime(2026, 3, 13, 10, 0, tzinfo=UTC)
         assert check_session(now) == Session.LONDON
 
 
@@ -103,20 +102,20 @@ class TestSession:
 
 class TestNewsBuffer:
     def test_no_news_passes(self):
-        now = datetime(2026, 3, 13, 14, 0, tzinfo=timezone.utc)
+        now = datetime(2026, 3, 13, 14, 0, tzinfo=UTC)
         assert check_news(now, []) is True
 
     def test_news_within_buffer_blocks(self):
-        now = datetime(2026, 3, 13, 14, 0, tzinfo=timezone.utc)
+        now = datetime(2026, 3, 13, 14, 0, tzinfo=UTC)
         news = [now + timedelta(minutes=10)]  # 10 min away < 15 min buffer
         assert check_news(now, news) is False
 
     def test_news_outside_buffer_passes(self):
-        now = datetime(2026, 3, 13, 14, 0, tzinfo=timezone.utc)
+        now = datetime(2026, 3, 13, 14, 0, tzinfo=UTC)
         news = [now + timedelta(minutes=20)]  # 20 min away > 15 min buffer
         assert check_news(now, news) is True
 
     def test_past_news_within_buffer_blocks(self):
-        now = datetime(2026, 3, 13, 14, 0, tzinfo=timezone.utc)
+        now = datetime(2026, 3, 13, 14, 0, tzinfo=UTC)
         news = [now - timedelta(minutes=10)]  # 10 min ago < 15 min buffer
         assert check_news(now, news) is False

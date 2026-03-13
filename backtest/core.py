@@ -4,18 +4,16 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import numpy as np
 import pandas as pd
 
 from config import (
     INSTRUMENT_CONFIGS,
-    ORB_MINUTES,
     PARTIAL_CLOSE_PCT,
     STARTING_CAPITAL,
     Instrument,
-    Session,
 )
 from filters import all_filters_pass, check_session
 from indicators import atr
@@ -51,14 +49,14 @@ def generate_candles(
     sessions to match the bot's trading windows.
     """
     if start_date is None:
-        start_date = datetime(2026, 1, 5, 7, 0, tzinfo=timezone.utc)  # a Monday
+        start_date = datetime(2026, 1, 5, 7, 0, tzinfo=UTC)  # a Monday
 
     # Base price and volatility per instrument
     base_prices = {Instrument.US30: 39000.0, Instrument.SPX: 5200.0}
     tick_sizes = {Instrument.US30: 1.0, Instrument.SPX: 0.25}
 
     base = base_prices[instrument]
-    tick = tick_sizes[instrument]
+    _tick = tick_sizes[instrument]
 
     # Session windows as (start_hour, start_min, end_hour, end_min)
     sessions = [
@@ -250,7 +248,7 @@ class BacktestResult:
             f"Period: {self.start_date:%Y-%m-%d} → {self.end_date:%Y-%m-%d}",
             f"Capital: €{self.starting_capital:.2f} → €{self.ending_capital:.2f}",
             f"Total PnL: €{self.total_pnl:.2f} ({self.total_pnl / self.starting_capital * 100:+.1f}%)",
-            f"",
+            "",
             f"Trades: {self.total_trades}  |  Wins: {self.winning_trades}  |  Losses: {self.losing_trades}",
             f"Win rate: {self.win_rate:.1%}",
             f"Avg PnL/trade: €{self.avg_pnl:.2f}",
@@ -285,8 +283,8 @@ def run_backtest(
     if df_1m_full.empty:
         return BacktestResult(
             instrument=instrument.value,
-            start_date=datetime.now(timezone.utc),
-            end_date=datetime.now(timezone.utc),
+            start_date=datetime.now(UTC),
+            end_date=datetime.now(UTC),
             starting_capital=capital,
             ending_capital=capital,
         )
@@ -391,7 +389,7 @@ def run_backtest(
 
         # ── Entry filters ─────────────────────────────────────
         news_times: list[datetime] = []  # no news events in synthetic data
-        passed, session = all_filters_pass(
+        passed, _session = all_filters_pass(
             df_5m, df_1m, instrument, spread, now, news_times,
         )
         if not passed:

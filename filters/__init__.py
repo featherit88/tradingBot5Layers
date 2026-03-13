@@ -1,5 +1,6 @@
 """Entry gates that must all pass before any signal is evaluated."""
 
+from filters.breaking_news import is_market_safe, scan_breaking_news
 from filters.core import (
     all_filters_pass,
     check_atr_floor,
@@ -9,7 +10,6 @@ from filters.core import (
     check_volume_floor,
 )
 from filters.news import fetch_news_events, get_upcoming_events
-from filters.breaking_news import is_market_safe, scan_breaking_news
 
 __all__ = [
     "all_filters_pass",

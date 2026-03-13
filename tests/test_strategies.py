@@ -1,7 +1,6 @@
 """Tests for the strategies module."""
 
 import pandas as pd
-import pytest
 
 from strategies.core import (
     break_and_retest,

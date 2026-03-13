@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime
-from typing import Optional
 
 import mysql.connector
 from mysql.connector import Error
@@ -63,7 +62,7 @@ class TradeLogger:
         stop_loss: float,
         take_profit_1r: float,
         size: float,
-    ) -> Optional[int]:
+    ) -> int | None:
         """Insert a new trade row when a position opens. Returns the row ID."""
         if not self._ensure_connected():
             return None

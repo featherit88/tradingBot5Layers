@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, time, timezone
+from datetime import UTC, datetime, time
 
 import pandas as pd
 
@@ -49,10 +49,10 @@ def check_session(now_gmt: datetime) -> Session | None:
 def check_news(now_gmt: datetime, news_times: list[datetime]) -> bool:
     """True if no news event within NEWS_BUFFER_MINUTES of now."""
     if now_gmt.tzinfo is None:
-        now_gmt = now_gmt.replace(tzinfo=timezone.utc)
+        now_gmt = now_gmt.replace(tzinfo=UTC)
     for nt in news_times:
         if nt.tzinfo is None:
-            nt = nt.replace(tzinfo=timezone.utc)
+            nt = nt.replace(tzinfo=UTC)
         if abs((now_gmt - nt).total_seconds()) < NEWS_BUFFER_MINUTES * 60:
             return False
     return True

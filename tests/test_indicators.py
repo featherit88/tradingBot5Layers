@@ -1,8 +1,6 @@
 """Tests for the indicators module."""
 
-import numpy as np
 import pandas as pd
-import pytest
 
 from indicators import (
     atr,
@@ -97,22 +95,22 @@ class TestMarketStructure:
     def test_bullish_on_uptrend(self):
         # Zigzag with rising peaks and rising troughs (HH + HL).
         # Each swing leg is >FRACTAL_BARS(3) bars so fractal detection works.
-        prices = (
-            [100, 102, 105, 108, 110, 108, 105, 103]     # peak 110, trough 103
-            + [105, 108, 112, 115, 118, 115, 112, 110]   # peak 118, trough 110
-            + [112, 115, 118, 120, 123]                   # peak 123 (HH confirmed)
-        )
+        prices = [
+            *[100, 102, 105, 108, 110, 108, 105, 103],     # peak 110, trough 103
+            *[105, 108, 112, 115, 118, 115, 112, 110],     # peak 118, trough 110
+            *[112, 115, 118, 120, 123],                     # peak 123 (HH confirmed)
+        ]
         df = _make_df(prices)
         result = market_structure_bullish(df)
         assert result
 
     def test_bearish_on_downtrend(self):
         # Zigzag with declining peaks and declining troughs (LL + LH).
-        prices = (
-            [200, 198, 195, 192, 190, 192, 195, 197]     # trough 190, peak 197
-            + [195, 192, 188, 185, 182, 185, 188, 190]   # trough 182, peak 190
-            + [188, 185, 182, 180, 177]                   # trough 177 (LL confirmed)
-        )
+        prices = [
+            *[200, 198, 195, 192, 190, 192, 195, 197],     # trough 190, peak 197
+            *[195, 192, 188, 185, 182, 185, 188, 190],     # trough 182, peak 190
+            *[188, 185, 182, 180, 177],                     # trough 177 (LL confirmed)
+        ]
         df = _make_df(prices)
         result = market_structure_bearish(df)
         assert result
@@ -209,7 +207,9 @@ class TestEMARibbon:
         df = _make_df([100 + i for i in range(20)])
         result = ema_ribbon(df)
         assert isinstance(result, dict)
-        assert 5 in result and 8 in result and 13 in result
+        assert 5 in result
+        assert 8 in result
+        assert 13 in result
 
     def test_bullish_ribbon_on_uptrend(self):
         df = _trending_df(100, 2.0, 30)

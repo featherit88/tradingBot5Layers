@@ -79,9 +79,7 @@ def compute_confluence(
         score.supertrend_score = SCORE_SUPERTREND
 
     # 3) Heikin-Ashi — 3M
-    if direction == 1 and ha_signal_bullish(df_3m):
-        score.heikin_ashi = SCORE_HEIKIN_ASHI
-    elif direction == -1 and ha_signal_bearish(df_3m):
+    if (direction == 1 and ha_signal_bullish(df_3m)) or (direction == -1 and ha_signal_bearish(df_3m)):
         score.heikin_ashi = SCORE_HEIKIN_ASHI
 
     # 4) VWAP — 1M (price relative to VWAP, valid after 14:00 GMT only)
@@ -91,9 +89,7 @@ def compute_confluence(
         vwap_series = vwap(df_1m)
         price = df_1m["close"].iloc[-1]
         vwap_val = vwap_series.iloc[-1]
-        if direction == 1 and price > vwap_val:
-            score.vwap_score = SCORE_VWAP
-        elif direction == -1 and price < vwap_val:
+        if (direction == 1 and price > vwap_val) or (direction == -1 and price < vwap_val):
             score.vwap_score = SCORE_VWAP
 
     # 5) Volume spike — 1M

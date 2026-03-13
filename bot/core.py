@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import signal
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from bot.db import TradeLogger
 from broker import CTraderBroker
@@ -94,7 +94,7 @@ class ScalpingBot:
     def _shutdown(self) -> None:
         """Close all open positions, log daily summary, disconnect."""
         log.info("Shutting down — closing %d open positions…", len(self.risk.open_trades))
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         for trade in list(self.risk.open_trades):
             try:
@@ -114,7 +114,7 @@ class ScalpingBot:
     # ── Core tick ────────────────────────────────────────────────
 
     def _tick(self) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Day/week reset checks
         self._check_resets(now)
@@ -194,7 +194,7 @@ class ScalpingBot:
         news_times = get_upcoming_events(now)
 
         # ── Entry filters ────────────────────────────────────────
-        passed, session = all_filters_pass(
+        passed, _session = all_filters_pass(
             df_5m, df_1m, instrument, tick.spread, now, news_times,
         )
         if not passed:
@@ -264,7 +264,7 @@ class ScalpingBot:
             label=f"scalp-{symbol}",
         )
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         trade = Trade(
             instrument=symbol,
             direction=direction,
@@ -300,7 +300,7 @@ class ScalpingBot:
 
     def _manage_open_trades(self) -> None:
         """Partial close at 1R, trail stop on remainder."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         for trade in list(self.risk.open_trades):
             tick = self.broker.get_tick(trade.instrument)
             price = tick.bid if trade.direction == 1 else tick.ask

@@ -27,6 +27,7 @@ ignore = [
 
 [lint.per-file-ignores]
 "tests/*" = ["T20"]  # allow print in tests
+"run_backtest.py" = ["T20"]  # CLI script uses print for output
 "__init__.py" = ["F401"]  # unused imports OK in __init__ (re-exports)
 
 [lint.isort]
