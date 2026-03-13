@@ -9,6 +9,7 @@
 - Graceful shutdown with SIGINT/SIGTERM handling and position cleanup
 - Trade logging to MySQL (TradeLogger in `bot/db.py`)
 - Daily summary table written on day reset and shutdown
+- MySQL trade logging tests: 18 tests covering connect/disconnect, trade open/close, partial close, daily summary upsert, error resilience, full lifecycle
 
 ## In Progress
 - Nothing
