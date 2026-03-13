@@ -1,5 +1,7 @@
 """Tests for the config module."""
 
+from unittest.mock import patch
+
 from config import (
     DAILY_DRAWDOWN_LIMIT,
     INSTRUMENT_CONFIGS,
@@ -12,6 +14,7 @@ from config import (
     WEEKLY_DRAWDOWN_LIMIT,
     Instrument,
     Session,
+    validate_config,
 )
 
 
@@ -63,3 +66,82 @@ class TestEnums:
     def test_sessions(self):
         assert Session.LONDON.value == "london"
         assert Session.NEW_YORK.value == "new_york"
+
+
+# ---------------------------------------------------------------------------
+# validate_config()
+# ---------------------------------------------------------------------------
+
+class TestValidateConfig:
+    """Tests for the validate_config() startup check."""
+
+    def test_current_config_is_valid(self):
+        """The shipped config must pass validation without errors."""
+        errors = validate_config()
+        assert errors == []
+
+    def test_scores_cannot_exceed_max(self):
+        """MIN_CONFLUENCE_SCORE must be <= sum of all score components."""
+        with patch("config.core.MIN_CONFLUENCE_SCORE", 15):
+            errors = validate_config()
+        assert any("confluence" in e.lower() for e in errors)
+
+    def test_daily_drawdown_must_be_less_than_weekly(self):
+        """Daily drawdown limit must be < weekly drawdown limit."""
+        with patch("config.core.DAILY_DRAWDOWN_LIMIT", 0.10):
+            errors = validate_config()
+        assert any("daily" in e.lower() and "weekly" in e.lower() for e in errors)
+
+    def test_risk_per_trade_must_be_positive(self):
+        """Risk per trade must be > 0."""
+        with patch("config.core.RISK_PER_TRADE_PCT", 0.0):
+            errors = validate_config()
+        assert any("risk_per_trade" in e.lower() for e in errors)
+
+    def test_risk_per_trade_must_be_at_most_100pct(self):
+        """Risk per trade must be <= 1.0."""
+        with patch("config.core.RISK_PER_TRADE_PCT", 1.5):
+            errors = validate_config()
+        assert any("risk_per_trade" in e.lower() for e in errors)
+
+    def test_partial_close_between_0_and_1(self):
+        """Partial close pct must be in (0, 1]."""
+        with patch("config.core.PARTIAL_CLOSE_PCT", 0.0):
+            errors = validate_config()
+        assert any("partial_close" in e.lower() for e in errors)
+
+    def test_starting_capital_must_be_positive(self):
+        """Starting capital must be > 0."""
+        with patch("config.core.STARTING_CAPITAL", -100.0):
+            errors = validate_config()
+        assert any("starting_capital" in e.lower() for e in errors)
+
+    def test_volume_spike_must_be_less_than_reject(self):
+        """Volume spike multiplier must be < reject multiplier."""
+        with patch("config.core.VOLUME_SPIKE_MULT", 5.0):
+            errors = validate_config()
+        assert any("volume" in e.lower() for e in errors)
+
+    def test_every_instrument_has_config(self):
+        """Every Instrument enum member must have an InstrumentConfig."""
+        with patch("config.core.INSTRUMENT_CONFIGS", {}):
+            errors = validate_config()
+        assert any("instrument" in e.lower() for e in errors)
+
+    def test_every_session_has_window(self):
+        """Every Session enum member must have a window in SESSION_WINDOWS."""
+        with patch("config.core.SESSION_WINDOWS", {}):
+            errors = validate_config()
+        assert any("session" in e.lower() for e in errors)
+
+    def test_max_open_trades_positive(self):
+        """MAX_OPEN_TRADES must be >= 1."""
+        with patch("config.core.MAX_OPEN_TRADES", 0):
+            errors = validate_config()
+        assert any("max_open_trades" in e.lower() for e in errors)
+
+    def test_supertrend_atr_period_positive(self):
+        """SUPERTREND_ATR_PERIOD must be >= 1."""
+        with patch("config.core.SUPERTREND_ATR_PERIOD", 0):
+            errors = validate_config()
+        assert any("supertrend" in e.lower() for e in errors)

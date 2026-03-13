@@ -77,3 +77,61 @@ ORB_MINUTES = 15                        # first 15-min range
 
 # ── News filter ──────────────────────────────────────────────────
 NEWS_BUFFER_MINUTES = 15
+
+
+# ── Validation ──────────────────────────────────────────────────
+
+def validate_config() -> list[str]:
+    """Check all config invariants. Returns a list of error messages (empty = valid)."""
+    errors: list[str] = []
+
+    # Score sum must be reachable
+    max_score = (
+        SCORE_MARKET_STRUCTURE + SCORE_SUPERTREND
+        + SCORE_HEIKIN_ASHI + SCORE_VWAP + SCORE_VOLUME_SPIKE
+    )
+    if max_score < MIN_CONFLUENCE_SCORE:
+        errors.append(
+            f"MIN_CONFLUENCE_SCORE ({MIN_CONFLUENCE_SCORE}) > max possible score ({max_score})"
+        )
+
+    # Risk percentages
+    if RISK_PER_TRADE_PCT <= 0 or RISK_PER_TRADE_PCT > 1.0:
+        errors.append(f"RISK_PER_TRADE_PCT ({RISK_PER_TRADE_PCT}) must be in (0, 1.0]")
+
+    if DAILY_DRAWDOWN_LIMIT >= WEEKLY_DRAWDOWN_LIMIT:
+        errors.append(
+            f"DAILY_DRAWDOWN_LIMIT ({DAILY_DRAWDOWN_LIMIT}) must be < "
+            f"WEEKLY_DRAWDOWN_LIMIT ({WEEKLY_DRAWDOWN_LIMIT})"
+        )
+
+    if PARTIAL_CLOSE_PCT <= 0 or PARTIAL_CLOSE_PCT > 1.0:
+        errors.append(f"PARTIAL_CLOSE_PCT ({PARTIAL_CLOSE_PCT}) must be in (0, 1.0]")
+
+    if STARTING_CAPITAL <= 0:
+        errors.append(f"STARTING_CAPITAL ({STARTING_CAPITAL}) must be > 0")
+
+    if MAX_OPEN_TRADES < 1:
+        errors.append(f"MAX_OPEN_TRADES ({MAX_OPEN_TRADES}) must be >= 1")
+
+    # Volume: spike threshold must be below reject threshold
+    if VOLUME_SPIKE_MULT >= VOLUME_REJECT_MULT:
+        errors.append(
+            f"VOLUME_SPIKE_MULT ({VOLUME_SPIKE_MULT}) must be < "
+            f"VOLUME_REJECT_MULT ({VOLUME_REJECT_MULT})"
+        )
+
+    # Indicator params
+    if SUPERTREND_ATR_PERIOD < 1:
+        errors.append(f"SUPERTREND_ATR_PERIOD ({SUPERTREND_ATR_PERIOD}) must be >= 1")
+
+    # Completeness: every enum member must have a config/window
+    for inst in Instrument:
+        if inst not in INSTRUMENT_CONFIGS:
+            errors.append(f"Instrument {inst.value} missing from INSTRUMENT_CONFIGS")
+
+    for sess in Session:
+        if sess not in SESSION_WINDOWS:
+            errors.append(f"Session {sess.value} missing from SESSION_WINDOWS")
+
+    return errors

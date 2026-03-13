@@ -2,6 +2,7 @@
 
 ## Done
 - All constants, enums, and instrument configs from CLAUDE.md spec
+- Config validation: validate_config() checks score sum, risk ranges, drawdown ordering, volume thresholds, completeness (12 tests)
 
 ## In Progress
 - Nothing

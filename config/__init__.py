@@ -34,6 +34,7 @@ from config.core import (
     Instrument,
     InstrumentConfig,
     Session,
+    validate_config,
 )
 
 __all__ = [
@@ -70,4 +71,5 @@ __all__ = [
     "Instrument",
     "InstrumentConfig",
     "Session",
+    "validate_config",
 ]
