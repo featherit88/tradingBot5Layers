@@ -13,6 +13,7 @@
   - Momentum bursts to flip supertrend indicators
 - Fixed supertrend NaN carry-forward bug (indicator never flipped bearish)
 - Both LONG and SHORT trades now generated across all seeds
+- CLI improvements: argparse with --days, --seed, --capital, --json, --no-trades, --log-level (12 tests)
 
 ## In Progress
 - None
