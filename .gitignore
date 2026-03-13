@@ -1,4 +1,5 @@
 docker/.env
+docker/ctrader_tokens.json
 __pycache__/
 *.pyc
 *.pyo

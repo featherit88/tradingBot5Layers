@@ -18,6 +18,8 @@ def main() -> None:
         client_id=os.getenv("CTRADER_CLIENT_ID", ""),
         client_secret=os.getenv("CTRADER_CLIENT_SECRET", ""),
         account_id=os.getenv("CTRADER_ACCOUNT_ID", ""),
+        access_token=os.getenv("CTRADER_ACCESS_TOKEN"),
+        demo=os.getenv("CTRADER_DEMO", "").lower() in ("1", "true", "yes"),
     )
 
     bot = ScalpingBot(broker)
