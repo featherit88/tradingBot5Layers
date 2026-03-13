@@ -1,6 +1,6 @@
 """All bot configuration — mirrors CLAUDE.md spec exactly."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 
 
@@ -68,6 +68,7 @@ MAX_OPEN_TRADES = 2
 DAILY_DRAWDOWN_LIMIT = 0.03             # 3 %
 WEEKLY_DRAWDOWN_LIMIT = 0.06            # 6 %
 PARTIAL_CLOSE_PCT = 0.50                # close 50 % at 1R
+TRAIL_ATR_FRACTION = 0.5                # trail stop follows at 0.5 * ATR behind best price
 
 STARTING_CAPITAL = 2000.0               # EUR
 

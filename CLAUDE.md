@@ -99,9 +99,122 @@ Always import from the module's public API (`__init__.py`), never from internal 
 - Source code is volume-mounted into the bot container for live reload
 - All dependencies (Python, MySQL, etc.) are containerized
 
+### CRITICAL: All Python Commands Run in Docker Only
+**Never run `python`, `pytest`, `ruff`, or any Python command directly on the Windows host.**
+
+#### Step 1: Start containers once per session
+```bash
+docker compose -f docker/docker-compose.yml up -d
+```
+
+#### Step 2: Use `exec` for all commands (instant, no startup overhead)
+```bash
+# Tests
+docker compose -f docker/docker-compose.yml exec bot python -m pytest -v
+docker compose -f docker/docker-compose.yml exec bot python -m pytest tests/test_indicators.py -v
+docker compose -f docker/docker-compose.yml exec bot python -m pytest tests/test_risk.py::TestTrailingStop -v
+
+# Linting
+docker compose -f docker/docker-compose.yml exec bot ruff check .
+
+# Run bot / backtest
+docker compose -f docker/docker-compose.yml exec bot python main.py
+docker compose -f docker/docker-compose.yml exec bot python run_backtest.py
+
+# Rebuild after adding dependencies to requirements.txt
+docker compose -f docker/docker-compose.yml build bot && docker compose -f docker/docker-compose.yml up -d bot
+```
+
+#### Why `exec` not `run`
+- `run --rm` creates a NEW container each time (~5-10s overhead)
+- `exec` runs on the EXISTING container (instant, <1s)
+- Source code is volume-mounted so edits are visible immediately
+
+This applies to **all agents and subagents**.
+
 ## Current Status
 Python bot skeleton is complete with modular architecture. Dockerized. Backtesting engine operational.
-Next steps: implement real cTrader API calls in broker/, add news feed integration, feed real historical data into backtest.
+Next steps: implement real cTrader API calls in broker/, feed real historical data into backtest, trade logging to MySQL.
+
+## TDD & Agile Workflow (MANDATORY)
+
+**Every code change follows Test-Driven Development. No exceptions.**
+
+### Batched TDD Cycle (per feature/module):
+1. **UPDATE PROGRESS.md** — add planned work to "In Progress" (agents read this for context)
+2. **PLAN** — list all functions needed, define inputs/outputs/edge cases for each
+3. **WRITE ALL TESTS FIRST** — tests for every function in the batch, before any implementation
+4. **WRITE ALL IMPLEMENTATIONS** — minimum code for the batch
+5. **RUN TESTS & ITERATE** — fix failures, re-run until zero failures
+6. **UPDATE DOCS** — move PROGRESS.md items to "Done", update README.md with final API
+
+### Critical constraints:
+- **PROGRESS.md before, README.md after** — plan goes in Progress first, API docs update after tests pass
+- **Tests ALWAYS before implementation** — write all tests for the batch first, then implement
+- **Iterate until zero failures** — do not move on with failing tests
+- **Tests drive design** — if hard to test, the design is wrong, refactor
+- **Agents must follow TDD too** — subagents read PROGRESS.md, write tests first
+- **`docker-checks.sh` hook** runs syntax + ruff + tests automatically after every edit
+
+### Example:
+```
+Task: Add drawdown tracking to risk/ (3 functions)
+
+1. PROGRESS.md → "In Progress: daily/weekly drawdown checks + reset"
+2. PLAN: check_daily_drawdown, check_weekly_drawdown, reset_tracking
+3. WRITE ALL TESTS: 7 test methods covering happy path + edges + boundaries
+4. WRITE ALL IMPLEMENTATIONS: 3 functions in risk/core.py
+5. RUN → 2 failures → FIX → RUN → 0 failures ✓
+6. PROGRESS.md → "Done: drawdown tracking", README.md → update API
+```
+
+## Development Rules (Lessons from Code Reviews)
+
+These rules are derived from real bugs found across 4 review rounds. Follow them on every code change.
+
+### Datetime & Timezone
+- **Never use `datetime.utcnow()`** — always `datetime.now(timezone.utc)`
+- **Always coerce naive datetimes to UTC** before comparing with aware datetimes. If a function receives a datetime, check `.tzinfo` and add `replace(tzinfo=timezone.utc)` if None
+- **Time-gated features default to OFF** — if the current time is unknown (`None`), the feature must not fire. Use `if x is not None and condition` pattern, never `if x is None or condition`
+
+### DataFrame & Pandas Safety
+- **Check `df.empty` before any `iloc` access** — every function that receives a DataFrame must guard against empty input
+- **Never use `iloc[-n:0]`** — this always returns an empty slice in pandas. Use positive index arithmetic: `start_idx = len(df) - n; df.iloc[start_idx:start_idx + m]`
+- **Capture values before calling mutating methods** — if you need pre-mutation state (e.g., trade size before partial close), save it to a local variable first
+
+### Math & Division
+- **Guard all divisions** — check for zero or NaN denominators before dividing. For VWAP: replace zero cumulative volume with NaN. For percentage calculations: check `last_close == 0 or pd.isna(last_close)`
+
+### Multi-Bar / Multi-Timeframe Patterns
+- **Different bars for different events** — a break-and-retest requires the break on `iloc[-2]` and the retest on `iloc[-1]`, never both on the same bar
+- **Parametrize filtering functions** — swing point detection must accept a `mode` parameter (high/low) so callers get only the swing type they need, not both mixed together
+- **Both timeframes must agree** — when a rule says "5M + 3M must agree", check both independently and AND the results
+
+### State Ownership & Mutation
+- **Single source of truth** — state mutations (e.g., `trade.best_price = price`) belong inside the method that owns the state (e.g., `partial_close()`), not scattered across callers
+- **Remove dead code after state changes** — if a trailing stop overwrites `stop_loss`, don't set `stop_loss` to breakeven right before it
+- **Double-execution guard** — operations like `close_trade()` must check if already executed before applying side effects (PnL, balance changes)
+- **Extract shared logic into one method** — if bot and backtest both compute trailing stops, put it in `risk.update_trailing_stop()` and call it from both
+
+### Loop & Error Handling
+- **Per-item try-except in loops** — one instrument failing must not crash the entire tick loop. Wrap each iteration body in try-except with `log.exception()`
+- **Shutdown must be resilient** — wrap each trade close in its own try-except during shutdown so one failure doesn't skip remaining closes
+
+### Tracking & Logging
+- **Equity curves capture every bar** — append to equity curve on every loop iteration, not just on trade events. Add `equity_curve.append(balance)` before every `continue` statement
+- **Log all state transitions to DB** — partial closes, full closes, and resets must all be persisted. Don't silently skip DB writes
+- **Session tracking uses real boundaries** — use `check_session(now)` with actual session windows, never `hour // N` bucket heuristics
+- **Reset accumulators on session/day boundaries** — counters like `_session_bar_counts` must be cleared in daily reset logic
+
+### Testing Rules
+- **Tests must assert behavior, not just types** — `assert isinstance(result, bool)` proves nothing. Assert `result is True` or `result is False` with data designed to produce that outcome
+- **Test data must respect all thresholds** — if volume reject is 3x, don't use 5x in a spike test. Ensure test values are within valid operating ranges
+- **Every code path needs a test** — if VWAP is blocked before 14:00, test both before and after. If direction can be 1 or -1, test both
+- **Use realistic data shapes** — flat DataFrames for "no signal" cases, properly trending/zigzag data for "signal fires" cases
+
+### Import Hygiene
+- **Remove unused imports immediately** — don't leave `timezone` imported if only `time` is used. Clean up after every refactor
+- **Import from `__init__.py` only** — never `from module.core import X`, always `from module import X`
 
 ## Decisions Already Made
 - Supertrend: ATR 10 chosen over ATR 5 (ATR 5 too sensitive to single-candle spikes on US30)

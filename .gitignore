@@ -1,5 +1,10 @@
 docker/.env
 __pycache__/
 *.pyc
+*.pyo
 .venv/
 db_data/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/

@@ -17,6 +17,8 @@ def ema_ribbon_scalp(df_1m: pd.DataFrame) -> int:
     """Strategy 1: EMA Ribbon Scalp (1M).
     5/8/13 EMA stack, enter on pullback to 8 EMA.
     """
+    if df_1m.empty:
+        return 0
     if ema_ribbon_bullish(df_1m):
         ribbon = ema_ribbon(df_1m)
         low = df_1m["low"].iloc[-1]
@@ -36,6 +38,8 @@ def vwap_reversion(df_3m: pd.DataFrame) -> int:
     """Strategy 2: VWAP Reversion (3M).
     Fade overextension from VWAP, TP at VWAP reclaim.
     """
+    if df_3m.empty:
+        return 0
     vwap_series = vwap(df_3m)
     price = df_3m["close"].iloc[-1]
     vwap_val = vwap_series.iloc[-1]
@@ -59,18 +63,26 @@ def break_and_retest(df_5m: pd.DataFrame, df_1m: pd.DataFrame) -> int:
     """
     if len(df_5m) < 10:
         return 0
+    if df_1m.empty:
+        return 0
 
     # Simple structure break: latest close beyond previous swing
     prev_high = df_5m["high"].iloc[-3:-1].max()
     prev_low = df_5m["low"].iloc[-3:-1].min()
     close = df_5m["close"].iloc[-1]
 
-    # Bullish break: closed above prev high, current bar retesting
-    if close > prev_high and df_5m["low"].iloc[-1] <= prev_high:
+    # Bullish: previous bar broke above the prior swing high,
+    # current bar retests (low touches level but close stays above)
+    prev_bar_broke = df_5m["close"].iloc[-2] > prev_high
+    current_retests = df_5m["low"].iloc[-1] <= prev_high and close > prev_high
+    if prev_bar_broke and current_retests:
         return 1
 
-    # Bearish break: closed below prev low, current bar retesting
-    if close < prev_low and df_5m["high"].iloc[-1] >= prev_low:
+    # Bearish: previous bar broke below the prior swing low,
+    # current bar retests (high touches level but close stays below)
+    prev_bar_broke = df_5m["close"].iloc[-2] < prev_low
+    current_retests = df_5m["high"].iloc[-1] >= prev_low and close < prev_low
+    if prev_bar_broke and current_retests:
         return -1
 
     return 0
@@ -86,7 +98,9 @@ def opening_range_breakout(
     if session_bar_count < ORB_MINUTES:
         return 0  # still forming the range
 
-    orb_slice = df_1m.iloc[-session_bar_count : -session_bar_count + ORB_MINUTES]
+    end_idx = len(df_1m) - session_bar_count + ORB_MINUTES
+    start_idx = len(df_1m) - session_bar_count
+    orb_slice = df_1m.iloc[start_idx:end_idx]
     if len(orb_slice) < ORB_MINUTES:
         return 0
 

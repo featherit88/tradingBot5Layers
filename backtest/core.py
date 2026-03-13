@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, time, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 import pandas as pd
@@ -12,12 +12,12 @@ import pandas as pd
 from config import (
     INSTRUMENT_CONFIGS,
     ORB_MINUTES,
+    PARTIAL_CLOSE_PCT,
     STARTING_CAPITAL,
     Instrument,
     Session,
-    SESSION_WINDOWS,
 )
-from filters import all_filters_pass
+from filters import all_filters_pass, check_session
 from indicators import atr
 from risk import RiskManager, Trade
 from scoring import compute_confluence
@@ -315,10 +315,11 @@ def run_backtest(
         df_5m = resample_candles(available, 5).iloc[-lookback:]
 
         if len(df_3m) < 30 or len(df_5m) < 30:
+            equity_curve.append(risk.balance)
             continue
 
         # Track session bar count (reset on new session)
-        current_key = (now.date(), now.hour // 4)
+        current_key = (now.date(), check_session(now))
         if current_key != prev_session_date_hour:
             session_bar_count = 0
             prev_session_date_hour = current_key
@@ -338,22 +339,25 @@ def run_backtest(
                     or (trade_obj.direction == -1 and price <= trade_obj.take_profit_1r)
                 )
                 if hit_1r:
+                    close_size = trade_obj.size * PARTIAL_CLOSE_PCT
                     pnl_partial = risk.partial_close(trade_obj, price, pv)
                     trades.append(TradeRecord(
                         instrument=instrument.value,
                         direction=trade_obj.direction,
                         strategy="partial",
-                        entry_time=trade_obj._entry_time,
+                        entry_time=trade_obj.entry_time,
                         exit_time=now,
                         entry_price=trade_obj.entry_price,
                         exit_price=price,
-                        size=trade_obj.size,
+                        size=close_size,
                         pnl=pnl_partial,
-                        score=trade_obj._score,
+                        score=trade_obj.score,
                         exit_reason="partial_1r",
                     ))
                     trade_obj.stop_loss = trade_obj.entry_price  # move to breakeven
-                    equity_curve.append(risk.balance)
+
+            # Trail stop after partial close
+            risk.update_trailing_stop(trade_obj, price)
 
             # Check stop loss
             stopped = (
@@ -366,30 +370,32 @@ def run_backtest(
                     instrument=instrument.value,
                     direction=trade_obj.direction,
                     strategy="close",
-                    entry_time=trade_obj._entry_time,
+                    entry_time=trade_obj.entry_time,
                     exit_time=now,
                     entry_price=trade_obj.entry_price,
                     exit_price=price,
                     size=trade_obj.size,
                     pnl=pnl_close,
-                    score=trade_obj._score,
+                    score=trade_obj.score,
                     exit_reason="stop_loss",
                 ))
-                equity_curve.append(risk.balance)
 
         # ── Drawdown check ────────────────────────────────────
         if risk.daily_drawdown_hit() or risk.weekly_drawdown_hit():
+            equity_curve.append(risk.balance)
             continue
 
         if not risk.can_open_trade():
+            equity_curve.append(risk.balance)
             continue
 
         # ── Entry filters ─────────────────────────────────────
-        news_times: list[datetime] = []
+        news_times: list[datetime] = []  # no news events in synthetic data
         passed, session = all_filters_pass(
             df_5m, df_1m, instrument, spread, now, news_times,
         )
         if not passed:
+            equity_curve.append(risk.balance)
             continue
 
         # ── Strategy signals ──────────────────────────────────
@@ -405,7 +411,7 @@ def run_backtest(
                 continue
 
             # ── Confluence scoring ────────────────────────────
-            score = compute_confluence(direction, df_5m, df_3m, df_1m)
+            score = compute_confluence(direction, df_5m, df_3m, df_1m, now)
             if not score.triggered:
                 continue
 
@@ -429,11 +435,11 @@ def run_backtest(
                 stop_loss=sl,
                 take_profit_1r=tp_1r,
                 size=size,
+                atr_at_entry=atr_val,
+                entry_time=now,
+                strategy=name,
+                score=score.total,
             )
-            # Store backtest metadata on the trade object
-            trade_obj._entry_time = now
-            trade_obj._score = score.total
-            trade_obj._strategy = name
 
             risk.open_trade(trade_obj)
 
@@ -456,18 +462,19 @@ def run_backtest(
                 trades.append(TradeRecord(
                     instrument=instrument.value,
                     direction=trade_obj.direction,
-                    strategy=getattr(trade_obj, "_strategy", "unknown"),
-                    entry_time=getattr(trade_obj, "_entry_time", now),
+                    strategy=trade_obj.strategy,
+                    entry_time=trade_obj.entry_time,
                     exit_time=now,
                     entry_price=trade_obj.entry_price,
                     exit_price=current_price,
                     size=trade_obj.size,
                     pnl=pnl,
-                    score=getattr(trade_obj, "_score", 0),
+                    score=trade_obj.score,
                     exit_reason="session_end",
                 ))
             risk.reset_day()
-            equity_curve.append(risk.balance)
+
+        equity_curve.append(risk.balance)
 
     # Close any remaining open trades at last price
     last_price = df_1m_full["close"].iloc[-1]
@@ -476,14 +483,14 @@ def run_backtest(
         trades.append(TradeRecord(
             instrument=instrument.value,
             direction=trade_obj.direction,
-            strategy=getattr(trade_obj, "_strategy", "unknown"),
-            entry_time=getattr(trade_obj, "_entry_time", timestamps[-1]),
+            strategy=trade_obj.strategy,
+            entry_time=trade_obj.entry_time,
             exit_time=timestamps[-1],
             entry_price=trade_obj.entry_price,
             exit_price=last_price,
             size=trade_obj.size,
             pnl=pnl,
-            score=getattr(trade_obj, "_score", 0),
+            score=trade_obj.score,
             exit_reason="backtest_end",
         ))
     equity_curve.append(risk.balance)

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pandas as pd
 
@@ -73,7 +73,7 @@ class CTraderBroker:
         """Get latest bid/ask."""
         # TODO: subscribe to spot prices via ProtoOASubscribeSpotsReq
         log.warning("get_tick() is a stub")
-        return Tick(bid=0.0, ask=0.0, timestamp=datetime.utcnow())
+        return Tick(bid=0.0, ask=0.0, timestamp=datetime.now(timezone.utc))
 
     # ── Order execution ──────────────────────────────────────────
 

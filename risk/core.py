@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from config import (
     DAILY_DRAWDOWN_LIMIT,
     MAX_OPEN_TRADES,
     PARTIAL_CLOSE_PCT,
     RISK_PER_TRADE_PCT,
+    TRAIL_ATR_FRACTION,
     WEEKLY_DRAWDOWN_LIMIT,
 )
 
@@ -21,7 +23,13 @@ class Trade:
     stop_loss: float
     take_profit_1r: float
     size: float             # lot / contract size
+    atr_at_entry: float = 0.0       # ATR(14) snapshot for trailing calc
     partial_closed: bool = False
+    best_price: float = 0.0         # best favorable price since partial close
+    db_id: int | None = None        # MySQL row ID for trade logging
+    entry_time: datetime | None = None
+    strategy: str = ""
+    score: int = 0
 
 
 @dataclass
@@ -71,10 +79,11 @@ class RiskManager:
 
     def close_trade(self, trade: Trade, exit_price: float, point_value: float) -> float:
         """Close full position, update balance. Returns PnL."""
+        if trade not in self.open_trades:
+            return 0.0
         pnl = trade.direction * (exit_price - trade.entry_price) * trade.size * point_value
         self.balance += pnl
-        if trade in self.open_trades:
-            self.open_trades.remove(trade)
+        self.open_trades.remove(trade)
         return pnl
 
     def partial_close(self, trade: Trade, current_price: float, point_value: float) -> float:
@@ -86,7 +95,29 @@ class RiskManager:
         self.balance += pnl
         trade.size -= close_size
         trade.partial_closed = True
+        trade.best_price = current_price
         return pnl
+
+    # ── Trailing stop ──────────────────────────────────────────
+
+    @staticmethod
+    def update_trailing_stop(trade: Trade, price: float) -> None:
+        """Trail the stop behind the best favorable price after partial close."""
+        if not trade.partial_closed or trade.atr_at_entry <= 0:
+            return
+        trail_dist = TRAIL_ATR_FRACTION * trade.atr_at_entry
+        if trade.direction == 1:
+            if price > trade.best_price:
+                trade.best_price = price
+            new_sl = trade.best_price - trail_dist
+            if new_sl > trade.stop_loss:
+                trade.stop_loss = new_sl
+        else:
+            if price < trade.best_price:
+                trade.best_price = price
+            new_sl = trade.best_price + trail_dist
+            if new_sl < trade.stop_loss:
+                trade.stop_loss = new_sl
 
     # ── Day/week resets ──────────────────────────────────────────
 

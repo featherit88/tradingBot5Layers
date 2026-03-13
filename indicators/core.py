@@ -71,38 +71,46 @@ def supertrend(
 
 # ── Market Structure (HH/HL or LL/LH) ───────────────────────────
 
-def _swing_points(series: pd.Series, bars: int = FRACTAL_BARS) -> list[tuple[int, float]]:
+def _swing_points(series: pd.Series, bars: int = FRACTAL_BARS, mode: str = "high") -> list[tuple[int, float]]:
     """Detect fractal swing points. Returns list of (index_pos, value)."""
     swings = []
     for i in range(bars, len(series) - bars):
         window = series.iloc[i - bars : i + bars + 1]
         val = series.iloc[i]
-        if val == window.max() or val == window.min():
+        if mode == "high" and val == window.max():
+            swings.append((i, val))
+        elif mode == "low" and val == window.min():
             swings.append((i, val))
     return swings
 
 
 def market_structure_bullish(df: pd.DataFrame) -> bool:
     """True if latest structure shows Higher-High + Higher-Low (close confirmation)."""
-    highs = _swing_points(df["high"])
-    lows = _swing_points(df["low"])
+    highs = _swing_points(df["high"], mode="high")
+    lows = _swing_points(df["low"], mode="low")
     if len(highs) < 2 or len(lows) < 2:
+        return False
+    last_close = df["close"].iloc[-1]
+    if last_close == 0 or pd.isna(last_close):
         return False
     hh = highs[-1][1] > highs[-2][1]
     hl = lows[-1][1] > lows[-2][1]
-    swing_size = abs(highs[-1][1] - lows[-1][1]) / df["close"].iloc[-1]
+    swing_size = abs(highs[-1][1] - lows[-1][1]) / last_close
     return hh and hl and swing_size >= MIN_SWING_PCT
 
 
 def market_structure_bearish(df: pd.DataFrame) -> bool:
     """True if latest structure shows Lower-Low + Lower-High."""
-    highs = _swing_points(df["high"])
-    lows = _swing_points(df["low"])
+    highs = _swing_points(df["high"], mode="high")
+    lows = _swing_points(df["low"], mode="low")
     if len(highs) < 2 or len(lows) < 2:
+        return False
+    last_close = df["close"].iloc[-1]
+    if last_close == 0 or pd.isna(last_close):
         return False
     ll = lows[-1][1] < lows[-2][1]
     lh = highs[-1][1] < highs[-2][1]
-    swing_size = abs(highs[-1][1] - lows[-1][1]) / df["close"].iloc[-1]
+    swing_size = abs(highs[-1][1] - lows[-1][1]) / last_close
     return ll and lh and swing_size >= MIN_SWING_PCT
 
 
@@ -165,6 +173,7 @@ def vwap(df: pd.DataFrame) -> pd.Series:
     typical = (df["high"] + df["low"] + df["close"]) / 3
     cum_tp_vol = (typical * df["volume"]).cumsum()
     cum_vol = df["volume"].cumsum()
+    cum_vol = cum_vol.replace(0, float("nan"))
     return cum_tp_vol / cum_vol
 
 

@@ -6,7 +6,7 @@
 
 | Export | Type | Description |
 |---|---|---|
-| `Trade` | dataclass | Represents an open trade (instrument, direction, entry, SL, TP, size) |
+| `Trade` | dataclass | Represents an open trade (instrument, direction, entry, SL, TP, size, ATR, best_price) |
 | `RiskManager` | class | Manages balance, open trades, sizing, drawdown checks |
 
 ### RiskManager methods

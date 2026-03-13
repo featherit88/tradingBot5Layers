@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, time
 
 import pandas as pd
 
@@ -13,6 +14,7 @@ from config import (
     SCORE_SUPERTREND,
     SCORE_VOLUME_SPIKE,
     SCORE_VWAP,
+    VWAP_VALID_AFTER_GMT,
 )
 from indicators import (
     ha_signal_bearish,
@@ -53,6 +55,7 @@ def compute_confluence(
     df_5m: pd.DataFrame,
     df_3m: pd.DataFrame,
     df_1m: pd.DataFrame,
+    now: datetime | None = None,
 ) -> ScoreBreakdown:
     """Score a potential trade across all five confluence tools."""
     score = ScoreBreakdown()
@@ -81,14 +84,17 @@ def compute_confluence(
     elif direction == -1 and ha_signal_bearish(df_3m):
         score.heikin_ashi = SCORE_HEIKIN_ASHI
 
-    # 4) VWAP — 1M (price relative to VWAP)
-    vwap_series = vwap(df_1m)
-    price = df_1m["close"].iloc[-1]
-    vwap_val = vwap_series.iloc[-1]
-    if direction == 1 and price > vwap_val:
-        score.vwap_score = SCORE_VWAP
-    elif direction == -1 and price < vwap_val:
-        score.vwap_score = SCORE_VWAP
+    # 4) VWAP — 1M (price relative to VWAP, valid after 14:00 GMT only)
+    vwap_valid_after = time.fromisoformat(VWAP_VALID_AFTER_GMT)
+    current_time = now.time() if now else None
+    if current_time is not None and current_time >= vwap_valid_after:
+        vwap_series = vwap(df_1m)
+        price = df_1m["close"].iloc[-1]
+        vwap_val = vwap_series.iloc[-1]
+        if direction == 1 and price > vwap_val:
+            score.vwap_score = SCORE_VWAP
+        elif direction == -1 and price < vwap_val:
+            score.vwap_score = SCORE_VWAP
 
     # 5) Volume spike — 1M
     if volume_spike(df_1m):
