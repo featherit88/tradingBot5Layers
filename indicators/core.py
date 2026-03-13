@@ -51,14 +51,16 @@ def supertrend(
     st_val[:] = np.nan
 
     for i in range(1, len(df)):
-        # carry forward tighter bands
-        if not (lower[i] > lower[i - 1] or close[i - 1] < lower[i - 1]):
+        # Skip carry-forward when previous values are NaN (ATR warmup)
+        if not np.isnan(lower[i - 1]) and not (lower[i] > lower[i - 1] or close[i - 1] < lower[i - 1]):
             lower[i] = lower[i - 1]
 
-        if not (upper[i] < upper[i - 1] or close[i - 1] > upper[i - 1]):
+        if not np.isnan(upper[i - 1]) and not (upper[i] < upper[i - 1] or close[i - 1] > upper[i - 1]):
             upper[i] = upper[i - 1]
 
-        if st_dir[i - 1] == 1:
+        if np.isnan(lower[i]) or np.isnan(upper[i]):
+            st_dir[i] = st_dir[i - 1]
+        elif st_dir[i - 1] == 1:
             st_dir[i] = -1 if close[i] < lower[i] else 1
         else:
             st_dir[i] = 1 if close[i] > upper[i] else -1

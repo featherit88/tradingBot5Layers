@@ -37,6 +37,23 @@ POINT_VALUE = {
 # ── Synthetic data generator ──────────────────────────────────────
 
 
+def _session_volatility_mult(bar_in_session: int, total_bars: int) -> float:
+    """U-shaped volatility: higher at session open/close, lower mid-session."""
+    if total_bars <= 1:
+        return 1.0
+    frac = bar_in_session / total_bars
+    # U-shape: 1.4x at edges, 0.7x in the middle
+    return 0.7 + 0.7 * (2 * frac - 1) ** 2
+
+
+def _session_volume_mult(bar_in_session: int, total_bars: int) -> float:
+    """U-shaped volume: higher at session open/close, lower mid-session."""
+    if total_bars <= 1:
+        return 1.0
+    frac = bar_in_session / total_bars
+    return 0.6 + 0.8 * (2 * frac - 1) ** 2
+
+
 def generate_candles(
     instrument: Instrument,
     days: int = 20,
@@ -45,75 +62,152 @@ def generate_candles(
 ) -> pd.DataFrame:
     """Generate realistic synthetic OHLCV data for backtesting.
 
-    Produces candles only during London (07:00-10:00) and NY (13:30-16:30)
-    sessions to match the bot's trading windows.
+    Features:
+    - Session-only bars (London 07-10, NY 13:30-16:30)
+    - U-shaped volatility and volume profiles within sessions
+    - Balanced up/down regime switching
+    - Opening range consolidation (first 15 bars tighter)
+    - Occasional session gaps
+    - Mean-reversion to prevent runaway prices
     """
     if start_date is None:
         start_date = datetime(2026, 1, 5, 7, 0, tzinfo=UTC)  # a Monday
 
-    # Base price and volatility per instrument
     base_prices = {Instrument.US30: 39000.0, Instrument.SPX: 5200.0}
-    tick_sizes = {Instrument.US30: 1.0, Instrument.SPX: 0.25}
-
     base = base_prices[instrument]
-    _tick = tick_sizes[instrument]
 
-    # Session windows as (start_hour, start_min, end_hour, end_min)
     sessions = [
-        (7, 0, 10, 0),    # London
-        (13, 30, 16, 30),  # New York
+        (7, 0, 10, 0),    # London: 180 bars
+        (13, 30, 16, 30),  # New York: 180 bars
     ]
 
     rows: list[dict] = []
     price = base
 
     # Regime: trending phases with random direction switches
-    regime_dir = 1  # 1 = uptrend, -1 = downtrend
+    regime_dir = np.random.choice([-1, 1])  # random initial direction
     regime_bars = 0
-    regime_length = int(np.random.uniform(30, 120))  # bars per regime
+    regime_length = int(np.random.uniform(50, 150))
+    # Phases: "trend", "consolidation"
+    regime_phase = "trend"
 
     for day in range(days):
         current_date = start_date + timedelta(days=day)
-        # Skip weekends
         if current_date.weekday() >= 5:
             continue
 
         for s_h, s_m, e_h, e_m in sessions:
             session_start = current_date.replace(hour=s_h, minute=s_m, second=0)
             session_end = current_date.replace(hour=e_h, minute=e_m, second=0)
+            total_session_bars = int((session_end - session_start).total_seconds() / 60 / timeframe_minutes)
+
+            # Session gap: price can jump up to 0.15% between sessions
+            if rows:
+                gap = np.random.normal(0, base * 0.0008)
+                price = round(price + gap, 2)
+
+            # Opening range: first 15 bars have tighter range (consolidation)
+            orb_bars = min(15, total_session_bars)
+            orb_high = price + base * 0.001  # initial narrow range
+            orb_low = price - base * 0.001
+
             t = session_start
+            bar_in_session = 0
 
             while t < session_end:
-                # Switch regime periodically
+                bar_in_session += 1
+
+                # Regime switching
                 regime_bars += 1
                 if regime_bars >= regime_length:
-                    regime_dir *= -1
                     regime_bars = 0
-                    regime_length = int(np.random.uniform(30, 120))
+                    # Phase transitions: trend → momentum/consolidation → trend
+                    rnd = np.random.random()
+                    if regime_phase == "trend":
+                        if rnd < 0.15:
+                            regime_phase = "consolidation"
+                            regime_length = int(np.random.uniform(5, 15))
+                        elif rnd < 0.35:
+                            # Momentum burst: sharp reversal to flip indicators
+                            regime_phase = "momentum"
+                            regime_dir *= -1
+                            regime_length = int(np.random.uniform(5, 12))
+                        else:
+                            regime_dir *= -1
+                            regime_length = int(np.random.uniform(50, 150))
+                    elif regime_phase == "momentum":
+                        regime_phase = "trend"
+                        # Continue in same direction after burst
+                        regime_length = int(np.random.uniform(30, 100))
+                    else:
+                        regime_phase = "trend"
+                        regime_dir = np.random.choice([-1, 1])
+                        regime_length = int(np.random.uniform(50, 150))
 
-                # Trending drift + noise
-                trend_strength = base * 0.0004  # directional bias per bar
-                volatility = base * 0.00025  # noise
+                # Base volatility scaled by instrument
+                vol_scale = base * 0.0002
 
-                drift = regime_dir * trend_strength
-                # Add mean-reversion to prevent runaway prices
-                drift += -0.00002 * (price - base)
+                # Session-position multipliers
+                vol_mult = _session_volatility_mult(bar_in_session, total_session_bars)
 
-                noise = np.random.normal(drift, volatility)
+                # Opening range: first 15 bars are tighter
+                if bar_in_session <= orb_bars:
+                    vol_mult *= 0.6  # tighter range during ORB formation
+                    drift = np.random.normal(0, vol_scale * 0.3)  # mostly noise
+                elif bar_in_session == orb_bars + 1:
+                    # Breakout bar: stronger move with volume spike
+                    breakout_dir = np.random.choice([-1, 1])
+                    drift = breakout_dir * vol_scale * 3.0
+                    regime_dir = breakout_dir  # align regime with breakout
+                else:
+                    # Normal trending/consolidation
+                    trend_strength = base * 0.0007
+                    if regime_phase == "consolidation":
+                        drift = np.random.normal(0, vol_scale * 0.4)
+                    elif regime_phase == "momentum":
+                        # Strong directional burst (flips supertrend)
+                        drift = regime_dir * base * 0.002
+                    else:
+                        drift = regime_dir * trend_strength
+
+                # Mean-reversion only at extremes (>5% from base)
+                deviation_pct = (price - base) / base
+                if abs(deviation_pct) > 0.05:
+                    drift += -0.00005 * (price - base)
+
+                # Generate OHLC
+                noise = np.random.normal(drift, vol_scale * vol_mult)
                 open_p = round(price, 2)
-                intra_high = abs(np.random.normal(0, volatility * 0.7))
-                intra_low = abs(np.random.normal(0, volatility * 0.7))
-
                 close_p = round(open_p + noise, 2)
+
+                intra_high = abs(np.random.normal(0, vol_scale * vol_mult * 0.7))
+                intra_low = abs(np.random.normal(0, vol_scale * vol_mult * 0.7))
                 high_p = round(max(open_p, close_p) + intra_high, 2)
                 low_p = round(min(open_p, close_p) - intra_low, 2)
 
-                # Volume: higher during trends, with occasional spikes
-                vol_base = 800 + np.random.exponential(400)
-                # Boost volume in strong trend bars
-                if abs(noise) > volatility:
-                    vol_base *= 1.5
-                volume = int(vol_base)
+                # Update ORB range
+                if bar_in_session <= orb_bars:
+                    orb_high = max(orb_high, high_p)
+                    orb_low = min(orb_low, low_p)
+
+                # Volume: U-shaped profile + trend boost + occasional spikes
+                vol_base_val = 800 + np.random.exponential(300)
+                vol_session_mult = _session_volume_mult(bar_in_session, total_session_bars)
+                vol_base_val *= vol_session_mult
+
+                # Boost volume on strong moves
+                if abs(noise) > vol_scale * 1.5:
+                    vol_base_val *= 1.8
+
+                # Breakout bar gets extra volume
+                if bar_in_session == orb_bars + 1:
+                    vol_base_val *= 2.5
+
+                # Occasional random volume spikes (5% chance)
+                if np.random.random() < 0.05:
+                    vol_base_val *= np.random.uniform(1.5, 2.5)
+
+                volume = max(1, int(vol_base_val))
 
                 rows.append({
                     "timestamp": t,
