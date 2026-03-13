@@ -36,6 +36,7 @@ from config.core import (
     Session,
     validate_config,
 )
+from config.logging_setup import setup_logging
 
 __all__ = [
     "DAILY_DRAWDOWN_LIMIT",
@@ -71,5 +72,6 @@ __all__ = [
     "Instrument",
     "InstrumentConfig",
     "Session",
+    "setup_logging",
     "validate_config",
 ]

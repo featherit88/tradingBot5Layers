@@ -1,15 +1,11 @@
 """CLI entry point for running backtests."""
 
-import logging
 import sys
 
 from backtest import run_backtest
-from config import Instrument
+from config import Instrument, setup_logging
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
+setup_logging()
 
 
 def main() -> None:

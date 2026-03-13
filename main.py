@@ -1,17 +1,14 @@
 """Entry point — run the scalping bot."""
 
-import logging
 import os
 
 from dotenv import load_dotenv
 
 from bot import ScalpingBot
 from broker import CTraderBroker
+from config import setup_logging
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
+setup_logging()
 
 
 def main() -> None:
